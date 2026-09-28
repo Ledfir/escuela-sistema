@@ -1,0 +1,1 @@
+.finance-grid{display:grid;grid-template-columns:minmax(360px,1fr) minmax(0,1fr);gap:1rem;align-items:start}.finance-balance{background:#edf5fd;border-radius:8px;padding:.75rem;margin:0;color:#334e68}@media(max-width:700px){.finance-grid{grid-template-columns:1fr}}

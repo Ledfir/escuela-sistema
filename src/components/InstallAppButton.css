@@ -1,0 +1,1 @@
+.header-actions{display:flex;align-items:center;gap:1rem}.install-button{font-size:.82rem;padding:.55rem .75rem;white-space:nowrap}@media(max-width:700px){.header-actions{align-items:flex-start}.install-button{font-size:.74rem}}

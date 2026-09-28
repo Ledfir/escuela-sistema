@@ -1,0 +1,33 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import './CommunicationsPage.css'
+
+const labels = { all_school: 'Toda la escuela', education_level: 'Nivel', grade: 'Grado', group: 'Grupo', student: 'Alumno', guardian: 'Tutor' }
+const eventLabels = { exam: 'Examen', meeting: 'Junta', festival: 'Festival', vacation: 'Vacaciones', suspension: 'Suspensión', grade_delivery: 'Entrega de calificaciones', sports: 'Deportivo', payment_due: 'Fecha de pago', other: 'Otro' }
+const fullName = (person) => [person?.first_names, person?.paternal_surname, person?.maternal_surname].filter(Boolean).join(' ')
+
+export default function CommunicationsPage() {
+  const { session } = useAuth(); const [levels, setLevels] = useState([]); const [grades, setGrades] = useState([]); const [groups, setGroups] = useState([]); const [students, setStudents] = useState([]); const [guardians, setGuardians] = useState([])
+  const [tab, setTab] = useState('announcement'); const [target, setTarget] = useState('all_school'); const [targetId, setTargetId] = useState(''); const [error, setError] = useState(''); const [notice, setNotice] = useState('')
+  async function load() { const [l, gr, gp, st, gu] = await Promise.all([supabase.from('education_levels').select('*').order('sort_order'), supabase.from('grades').select('*, education_levels(name)').order('sort_order'), supabase.from('school_groups').select('*, school_years(name), grades(name, education_levels(name))').order('name'), supabase.from('students').select('*').order('paternal_surname'), supabase.from('guardians').select('*').order('paternal_surname')]); const issue = [l, gr, gp, st, gu].map(x => x.error).find(Boolean); if (issue) setError(issue.message); else { setLevels(l.data); setGrades(gr.data); setGroups(gp.data); setStudents(st.data); setGuardians(gu.data) } }
+  useEffect(() => { void load() }, [])
+  const clear = () => { setError(''); setNotice('') }
+  const payload = (foreignKey) => { const value = { target }; if (target !== 'all_school') value[foreignKey[target]] = targetId; return value }
+  const foreignKey = { education_level: 'education_level_id', grade: 'grade_id', group: 'group_id', student: 'student_id', guardian: 'guardian_id' }
+  const options = () => target === 'education_level' ? levels.map(x => [x.id, x.name]) : target === 'grade' ? grades.map(x => [x.id, `${x.education_levels?.name} · ${x.name}`]) : target === 'group' ? groups.map(x => [x.id, `${x.school_years?.name} · ${x.grades?.education_levels?.name} ${x.grades?.name} ${x.name}`]) : target === 'student' ? students.map(x => [x.id, fullName(x)]) : guardians.map(x => [x.id, fullName(x)])
+  async function createAnnouncement(event) { event.preventDefault(); clear(); const form = new FormData(event.currentTarget); if (target !== 'all_school' && !targetId) return setError('Selecciona el destinatario.')
+    const { data, error: insertError } = await supabase.from('announcements').insert({ title: form.get('title'), body: form.get('body'), created_by: session.user.id }).select().single(); if (insertError) return setError(insertError.message)
+    const { error: recipientError } = await supabase.from('announcement_recipients').insert({ announcement_id: data.id, ...payload(foreignKey) }); if (recipientError) return setError(recipientError.message)
+    event.currentTarget.reset(); setTarget('all_school'); setTargetId(''); setNotice('Comunicado publicado.')
+  }
+  async function createEvent(event) { event.preventDefault(); clear(); const form = new FormData(event.currentTarget); if (target !== 'all_school' && !targetId) return setError('Selecciona el destinatario.')
+    const { data, error: insertError } = await supabase.from('calendar_events').insert({ title: form.get('title'), description: form.get('description') || null, event_type: form.get('event_type'), starts_at: form.get('starts_at'), ends_at: form.get('ends_at') || null, is_all_day: form.get('is_all_day') === 'on', created_by: session.user.id }).select().single(); if (insertError) return setError(insertError.message)
+    const { error: recipientError } = await supabase.from('calendar_event_recipients').insert({ calendar_event_id: data.id, ...payload(foreignKey) }); if (recipientError) return setError(recipientError.message)
+    event.currentTarget.reset(); setTarget('all_school'); setTargetId(''); setNotice('Evento creado.')
+  }
+  const recipientFields = <><label>Dirigido a<select value={target} onChange={event => { setTarget(event.target.value); setTargetId('') }}>{Object.entries(labels).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>{target !== 'all_school' && <label>{labels[target]}<select value={targetId} onChange={event => setTargetId(event.target.value)} required><option value="" disabled>Selecciona una opción</option>{options().map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}</>
+  return <><section className="page-heading"><p className="eyebrow">Fase 10</p><h2>Comunicados y calendario</h2><p>Publica información relevante para la audiencia exacta.</p></section>{error && <p className="error banner">{error}</p>}{notice && <p className="notice banner">{notice}</p>}<div className="module-tabs"><button className={tab === 'announcement' ? 'tab active-tab' : 'tab'} onClick={() => setTab('announcement')}>Nuevo comunicado</button><button className={tab === 'event' ? 'tab active-tab' : 'tab'} onClick={() => setTab('event')}>Nuevo evento</button></div>
+    <section className="communications-form form-card">{tab === 'announcement' ? <><h3>Publicar comunicado</h3><form className="wide-form" onSubmit={createAnnouncement}><label>Asunto<input name="title" required placeholder="Suspensión de clases" /></label><label>Mensaje<textarea name="body" rows="6" required /></label>{recipientFields}<button>Publicar comunicado</button></form></> : <><h3>Crear evento</h3><form className="wide-form" onSubmit={createEvent}><label>Título<input name="title" required placeholder="Junta de padres" /></label><label>Descripción<textarea name="description" rows="3" /></label><div className="form-row"><label>Tipo<select name="event_type" defaultValue="other">{Object.entries(eventLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="check"><input name="is_all_day" type="checkbox" defaultChecked /> Todo el día</label></div><div className="form-row"><label>Inicio<input name="starts_at" type="datetime-local" required /></label><label>Fin<input name="ends_at" type="datetime-local" /></label></div>{recipientFields}<button>Crear evento</button></form></>}</section>
+  </>
+}
