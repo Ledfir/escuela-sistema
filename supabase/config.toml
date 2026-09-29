@@ -1,0 +1,14 @@
+# Supabase Config
+# This is the configuration for your Supabase project
+
+[project]
+# Reference your Supabase project ID
+project_id = "skhwcoepbkzfwvqpqvyg"
+
+[api]
+# Port to use for local Supabase server
+port = 54321
+
+[db]
+# Port for local postgres
+port = 54322
