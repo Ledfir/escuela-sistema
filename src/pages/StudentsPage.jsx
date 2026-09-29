@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import './StudentsPage.css'
 
 const optional = (value) => value?.trim() || null
 const studentName = (student) => [student.first_names, student.paternal_surname, student.maternal_surname].filter(Boolean).join(' ')
@@ -13,7 +14,7 @@ export default function StudentsPage() {
   const [links, setLinks] = useState([]); const [documents, setDocuments] = useState([])
   const [selectedId, setSelectedId] = useState(null); const [tab, setTab] = useState('students')
   const [search, setSearch] = useState(''); const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(''); const [notice, setNotice] = useState('')
+  const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [toast, setToast] = useState(null)
 
   const selected = students.find(item => item.id === selectedId)
   const selectedLinks = links.filter(item => item.student_id === selectedId)
@@ -34,31 +35,33 @@ export default function StudentsPage() {
     setLoading(false)
   }
   useEffect(() => { load(true) }, [])
+  useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(null), 4500); return () => window.clearTimeout(timeout) }, [toast])
   function resetMessage() { setError(''); setNotice('') }
+  function notify(type, message) { setToast({ type, message }) }
 
   async function createStudent(event) {
     event.preventDefault(); resetMessage(); const form = new FormData(event.currentTarget)
     const payload = { enrollment_number: optional(form.get('enrollment_number')), first_names: form.get('first_names').trim(), paternal_surname: form.get('paternal_surname').trim(), maternal_surname: optional(form.get('maternal_surname')), birth_date: form.get('birth_date'), curp: optional(form.get('curp'))?.toUpperCase(), sex: form.get('sex'), status: form.get('status'), entry_date: form.get('entry_date') || null, address: optional(form.get('address')), medical_notes: optional(form.get('medical_notes')), allergies: optional(form.get('allergies')), emergency_contact_name: optional(form.get('emergency_contact_name')), emergency_contact_phone: optional(form.get('emergency_contact_phone')) }
     const { data, error: insertError } = await supabase.from('students').insert(payload).select().single()
-    if (insertError) return setError(insertError.message)
+    if (insertError) return notify('error', insertError.message)
     setStudents(previous => [...previous, data].sort((a, b) => studentName(a).localeCompare(studentName(b))))
-    setSelectedId(data.id); event.currentTarget.reset(); setNotice('Alumno creado. Ahora puedes relacionar tutores y adjuntar documentos.'); setTab('students')
+    setSelectedId(data.id); event.currentTarget.reset(); notify('success', 'Alumno creado correctamente.'); setTab('students')
   }
   async function createGuardian(event) {
     event.preventDefault(); resetMessage(); const form = new FormData(event.currentTarget)
     const payload = { first_names: form.get('first_names').trim(), paternal_surname: form.get('paternal_surname').trim(), maternal_surname: optional(form.get('maternal_surname')), curp: optional(form.get('curp'))?.toUpperCase(), email: optional(form.get('email')), phone: form.get('phone').trim(), alternate_phone: optional(form.get('alternate_phone')), address: optional(form.get('address')), occupation: optional(form.get('occupation')) }
     const { data, error: insertError } = await supabase.from('guardians').insert(payload).select().single()
-    if (insertError) return setError(insertError.message)
+    if (insertError) return notify('error', insertError.message)
     setGuardians(previous => [...previous, data].sort((a, b) => guardianName(a).localeCompare(guardianName(b))))
-    event.currentTarget.reset(); setNotice('Tutor creado. Relaciónalo con uno o más alumnos en la pestaña Vínculos.'); setTab('links')
+    event.currentTarget.reset(); notify('success', 'Tutor creado correctamente.'); setTab('links')
   }
   async function createLink(event) {
     event.preventDefault(); resetMessage(); const form = new FormData(event.currentTarget); const studentId = form.get('student_id'); const isPrimary = form.get('is_primary') === 'on'
-    if (isPrimary) await supabase.from('student_guardians').update({ is_primary: false }).eq('student_id', studentId).eq('is_primary', true)
+    if (isPrimary) { const { error: primaryError } = await supabase.from('student_guardians').update({ is_primary: false }).eq('student_id', studentId).eq('is_primary', true); if (primaryError) return notify('error', primaryError.message) }
     const { data, error: insertError } = await supabase.from('student_guardians').insert({ student_id: studentId, guardian_id: form.get('guardian_id'), relationship: form.get('relationship'), is_primary: isPrimary, is_authorized_pickup: form.get('is_authorized_pickup') === 'on', receives_communications: form.get('receives_communications') === 'on' }).select('*, guardians(*)').single()
-    if (insertError) return setError(insertError.message)
+    if (insertError) return notify('error', insertError.message)
     setLinks(previous => [...previous.filter(item => !(isPrimary && item.student_id === studentId)), data])
-    setSelectedId(studentId); event.currentTarget.reset(); setNotice('Tutor vinculado al alumno.'); setTab('students')
+    setSelectedId(studentId); event.currentTarget.reset(); notify('success', 'Tutor vinculado al alumno correctamente.'); setTab('students')
   }
   async function uploadDocument(event) {
     event.preventDefault(); resetMessage(); const form = new FormData(event.currentTarget); const file = form.get('file'); const studentId = form.get('student_id')
@@ -79,7 +82,7 @@ export default function StudentsPage() {
 
   if (loading) return <main className="centered">Cargando expedientes…</main>
   return <><section className="page-heading"><p className="eyebrow">Fase 3</p><h2>Alumnos y expedientes</h2><p>Registra alumnos, tutores autorizados e integra los documentos de cada expediente.</p></section>
-    {error && <p className="error banner">{error}</p>}{notice && <p className="notice banner">{notice}</p>}
+    {toast && <div className={`toast toast-${toast.type}`} role="status"><strong>{toast.type === 'success' ? 'Correcto' : 'No se pudo completar'}</strong><span>{toast.message}</span><button aria-label="Cerrar alerta" onClick={() => setToast(null)}>×</button></div>}{error && <p className="error banner">{error}</p>}{notice && <p className="notice banner">{notice}</p>}
     <div className="module-tabs"><button className={tab === 'students' ? 'tab active-tab' : 'tab'} onClick={() => setTab('students')}>Alumnos</button><button className={tab === 'new-student' ? 'tab active-tab' : 'tab'} onClick={() => setTab('new-student')}>Nuevo alumno</button><button className={tab === 'guardians' ? 'tab active-tab' : 'tab'} onClick={() => setTab('guardians')}>Nuevo tutor</button><button className={tab === 'links' ? 'tab active-tab' : 'tab'} onClick={() => setTab('links')}>Vínculos</button><button className={tab === 'documents' ? 'tab active-tab' : 'tab'} onClick={() => setTab('documents')}>Documentos</button></div>
     {tab === 'students' && <div className="records-layout"><section className="records-list"><input aria-label="Buscar alumno" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nombre o matrícula" />{visibleStudents.length ? visibleStudents.map(student => <button className={selectedId === student.id ? 'student-row selected-row' : 'student-row'} key={student.id} onClick={() => setSelectedId(student.id)}><strong>{studentName(student)}</strong><span>{student.enrollment_number || 'Sin matrícula'} · {statusNames[student.status]}</span></button>) : <p className="empty">Aún no hay alumnos.</p>}</section><StudentDetails student={selected} links={selectedLinks} documents={selectedDocuments} onOpenDocument={openDocument} /></div>}
     {tab === 'new-student' && <FormCard title="Nuevo alumno"><form className="wide-form" onSubmit={createStudent}><div className="form-row triple"><label>Nombres<input name="first_names" required /></label><label>Apellido paterno<input name="paternal_surname" required /></label><label>Apellido materno<input name="maternal_surname" /></label></div><div className="form-row triple"><label>Matrícula<input name="enrollment_number" placeholder="Opcional" /></label><label>Fecha de nacimiento<input name="birth_date" type="date" required /></label><label>CURP<input name="curp" maxLength="18" /></label></div><div className="form-row triple"><label>Sexo<select name="sex" defaultValue="unspecified"><option value="unspecified">Sin especificar</option><option value="female">Femenino</option><option value="male">Masculino</option></select></label><label>Estatus<select name="status" defaultValue="preinscribed">{Object.entries(statusNames).map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label><label>Fecha de ingreso<input name="entry_date" type="date" /></label></div><label>Domicilio<textarea name="address" rows="2" /></label><div className="form-row"><label>Alergias<textarea name="allergies" rows="2" /></label><label>Información médica<textarea name="medical_notes" rows="2" /></label></div><div className="form-row"><label>Contacto de emergencia<input name="emergency_contact_name" /></label><label>Teléfono de emergencia<input name="emergency_contact_phone" /></label></div><button>Guardar alumno</button></form></FormCard>}
