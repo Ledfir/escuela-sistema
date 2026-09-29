@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [passwordRecovery, setPasswordRecovery] = useState(false)
 
   useEffect(() => {
     if (!isSupabaseConfigured) { setLoading(false); return }
@@ -21,7 +22,9 @@ export function AuthProvider({ children }) {
       if (nextSession) await loadRoles(nextSession.user.id)
       if (!nextSession) setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
+      if (event === 'SIGNED_OUT') setPasswordRecovery(false)
       setSession(nextSession)
       if (nextSession) void loadRoles(nextSession.user.id)
       else { setRoles([]); setLoading(false) }
@@ -34,6 +37,8 @@ export function AuthProvider({ children }) {
     signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
     signUp: (email, password, fullName) => supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } }),
     signOut: () => supabase.auth.signOut(),
+    passwordRecovery,
+    clearPasswordRecovery: () => setPasswordRecovery(false),
     hasRole: (...allowed) => roles.some((role) => allowed.includes(role.code))
   }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
