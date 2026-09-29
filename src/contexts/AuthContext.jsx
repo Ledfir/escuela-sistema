@@ -2,12 +2,13 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
+const recoveryFromUrl = () => new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery' || new URLSearchParams(window.location.search).get('type') === 'recovery'
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
-  const [passwordRecovery, setPasswordRecovery] = useState(false)
+  const [passwordRecovery, setPasswordRecovery] = useState(() => recoveryFromUrl())
 
   useEffect(() => {
     if (!isSupabaseConfigured) { setLoading(false); return }

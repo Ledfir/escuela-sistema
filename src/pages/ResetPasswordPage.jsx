@@ -8,7 +8,7 @@ const recoveryFromUrl = () => new URLSearchParams(window.location.hash.slice(1))
 
 export default function ResetPasswordPage() {
   const { configured, session, passwordRecovery, clearPasswordRecovery, signOut } = useAuth()
-  const [isRecovery, setIsRecovery] = useState(() => recoveryFromUrl())
+  const [isRecovery, setIsRecovery] = useState(() => passwordRecovery || recoveryFromUrl())
   const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [sending, setSending] = useState(false)
 
   useEffect(() => {
