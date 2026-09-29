@@ -18,7 +18,7 @@ export default function EnrollmentsPage() {
   async function load(showLoader = false) {
     if (showLoader) setLoading(true); setError('')
     const [studentResult, yearResult, gradeResult, groupResult, enrollmentResult] = await Promise.all([
-      supabase.from('students').select('*').order('paternal_surname'),
+      supabase.from('students').select('*').is('deleted_at', null).order('paternal_surname'),
       supabase.from('school_years').select('*').order('starts_on', { ascending: false }),
       supabase.from('grades').select('*, education_levels(name)').order('sort_order'),
       supabase.from('school_groups').select('*').order('name'),

@@ -21,7 +21,7 @@ export default function FinancePage() {
   async function load(showLoader = false) {
     if (showLoader) setLoading(true); setError('')
     const [studentResult, conceptResult, scholarshipResult, chargeResult, paymentResult] = await Promise.all([
-      supabase.from('students').select('*').order('paternal_surname'),
+      supabase.from('students').select('*').is('deleted_at', null).order('paternal_surname'),
       supabase.from('billing_concepts').select('*').order('name'),
       supabase.from('student_scholarships').select('*, students(first_names, paternal_surname, maternal_surname)').order('created_at', { ascending: false }),
       supabase.from('student_charges').select('*, students(first_names, paternal_surname, maternal_surname), billing_concepts(name, code)').order('due_date', { ascending: false }),
